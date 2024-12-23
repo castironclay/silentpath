@@ -15,10 +15,12 @@ client = boto3.client(
 )
 def send_sqs(data) -> None:
     global client
-    client.send_message(
+    response = client.send_message(
         QueueUrl=os.environ["SERVER_QUEUE_URL"],
         MessageBody=data,
     )
+    print(response)
+
 
 def process_packet(packet):
     scapy_packet = IP(packet.get_payload())
