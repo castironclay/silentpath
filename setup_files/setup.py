@@ -3,7 +3,6 @@ import os
 import boto3
 
 project_name = os.environ["PROJECT_NAME"]
-account_id = os.environ["ACCOUNT_ID"]
 region = "us-east-1"
 
 sqs_client = boto3.client(
