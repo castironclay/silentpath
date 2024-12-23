@@ -36,7 +36,7 @@ def listen_for_messages():
                 for message in messages:
                     process_message(message)
 
-                    # Delete the message 
+                    # Delete the message
                     receipt_handle = message["ReceiptHandle"]
                     sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle)
                     print(f"Message deleted: {receipt_handle}")
