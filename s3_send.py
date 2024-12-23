@@ -13,18 +13,18 @@ s3_client = boto3.client(
 )
 
 
-def download_file(file_name, bucket, object_name=None):
+def upload_file(file_name, bucket, object_name=None):
     global s3_client
     if object_name is None:
         object_name = os.path.basename(file_name)
 
     # Upload the file
     try:
-        s3_client.download_file(file_name, bucket, object_name)
+        s3_client.upload_file(file_name, bucket, object_name)
     except ClientError as e:
         logger.error(e)
         return False
     return True
 
 
-download_file("silentpath", "test_file.txt", "new_file.txt")
+upload_file("file.pkt", "silentpath", "file.pkt")
