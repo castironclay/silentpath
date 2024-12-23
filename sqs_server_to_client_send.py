@@ -15,16 +15,19 @@ client = boto3.client(
 )
 def send_sqs(data) -> None:
     global client
-    client.send_message(
+    response = client.send_message(
         QueueUrl=os.environ["CLIENT_QUEUE_URL"],
         MessageBody=data,
     )
+    print(response)
+
 
 def process_packet(packet):
     scapy_packet = IP(packet.get_payload())
     if ICMP in scapy_packet:
         # Convert the packet to Base64
         encoded_packet = base64.b64encode(raw(scapy_packet)).decode()
+        print('Sending')
         send_sqs(encoded_packet)
     packet.drop()  # Let the packet pass
 
