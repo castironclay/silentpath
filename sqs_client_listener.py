@@ -71,5 +71,5 @@ def listen_for_messages():
 
 # Start listening for messages
 if __name__ == "__main__":
-    print("Starting server listener")
+    print("Starting client listener")
     listen_for_messages()
