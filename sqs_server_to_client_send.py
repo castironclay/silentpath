@@ -24,11 +24,10 @@ def send_sqs(data) -> None:
 
 def process_packet(packet):
     scapy_packet = IP(packet.get_payload())
-    if TCP in scapy_packet:
-        # Convert the packet to Base64
-        encoded_packet = base64.b64encode(raw(scapy_packet)).decode()
-        print('Sending')
-        send_sqs(encoded_packet)
+    # Convert the packet to Base64
+    encoded_packet = base64.b64encode(raw(scapy_packet)).decode()
+    print('Sending')
+    send_sqs(encoded_packet)
     packet.drop()  # Let the packet pass
 
 nfqueue = NetfilterQueue()
