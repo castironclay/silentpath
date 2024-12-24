@@ -1,10 +1,9 @@
+import base64
 import os
 
 import boto3
 from netfilterqueue import NetfilterQueue
-from scapy.all import IP, ICMP, raw, TCP
-import base64
-import socket
+from scapy.all import IP, raw
 
 client = boto3.client(
     "sqs",
@@ -13,6 +12,8 @@ client = boto3.client(
     aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
     use_ssl=True,
 )
+
+
 def send_sqs(data) -> None:
     global client
     response = client.send_message(
@@ -26,9 +27,10 @@ def process_packet(packet):
     scapy_packet = IP(packet.get_payload())
     # Convert the packet to Base64
     encoded_packet = base64.b64encode(raw(scapy_packet)).decode()
-    print('Sending')
+    print("Sending")
     send_sqs(encoded_packet)
     packet.drop()  # Let the packet pass
+
 
 nfqueue = NetfilterQueue()
 nfqueue.bind(1, process_packet)

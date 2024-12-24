@@ -1,13 +1,10 @@
-import os
-from netfilterqueue import NetfilterQueue
-from scapy.all import IP, sendp, Ether
 import base64
-import socket
+import os
 import time
-import netifaces
-
 
 import boto3
+import netifaces
+from scapy.all import IP, Ether, sendp
 
 sqs = boto3.client(
     "sqs",
@@ -18,8 +15,9 @@ sqs = boto3.client(
 )
 
 queue_url = f'https://sqs.us-east-1.amazonaws.com/{os.environ["ACCOUNT_ID"]}/{os.environ["PROJECT_NAME"]}_client'
-addrs = netifaces.ifaddresses('wlan0')
-mac = addrs[netifaces.AF_LINK][0]['addr']
+addrs = netifaces.ifaddresses("wlan0")
+mac = addrs[netifaces.AF_LINK][0]["addr"]
+
 
 def process_received_packet(base64_packet):
     global mac
@@ -30,11 +28,12 @@ def process_received_packet(base64_packet):
     # Local MAC address
     sendp(Ether(dst=mac) / packet)  # Send the packet at layer2
 
+
 # Function to process each message
 def process_message(message):
     # Placeholder for your message processing logic
     print(f"Processing message: {message['Body']}")
-    data = message['Body']
+    data = message["Body"]
     print(data)
     if data:
         process_received_packet(data)
