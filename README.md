@@ -15,3 +15,7 @@ iptables -I OUTPUT -d 1.2.3.4 (server ip) -j NFQUEUE --queue-num 1
 iptables -I OUTPUT -d 1.2.3.4 (client ip) -j NFQUEUE --queue-num 1
 ```
 
+# TODOs
+- support other paths
+- add/remove iptables rules upon script start/stop
+- args for interface name
