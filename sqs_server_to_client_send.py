@@ -29,7 +29,7 @@ def process_packet(packet):
     encoded_packet = base64.b64encode(raw(scapy_packet)).decode()
     print("Sending")
     send_sqs(encoded_packet)
-    packet.drop()  # Let the packet pass
+    packet.drop()
 
 
 nfqueue = NetfilterQueue()
