@@ -26,8 +26,8 @@ def process_received_packet(compressed_packet):
     global mac
     # Decode the Base64 back into bytes
     decompressed = zstd.decompress(compressed_packet)
-    raw_packet = base64.b64decode(decompressed).encode()
-    packet = IP(raw_packet)
+    raw_packet = base64.b64decode(decompressed)
+    packet = IP(raw_packet.encode())
     print(f"Recreated Packet: {packet.summary()}")
     # Local MAC address
     sendp(Ether(dst=mac) / packet)  # Send the packet at layer2
