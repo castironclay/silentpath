@@ -22,10 +22,10 @@ addrs = netifaces.ifaddresses("wlan0")
 mac = addrs[netifaces.AF_LINK][0]["addr"]
 
 
-def process_received_packet(base64_packet):
+def process_received_packet(compressed_packet):
     global mac
     # Decode the Base64 back into bytes
-    decompressed = zstd.decompress(raw_packet)
+    decompressed = zstd.decompress(compressed_packet)
     raw_packet = base64.b64decode(decompressed).encode()
     packet = IP(raw_packet)
     print(f"Recreated Packet: {packet.summary()}")
