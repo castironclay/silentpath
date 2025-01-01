@@ -28,8 +28,7 @@ def process_received_packet(compressed_packet):
     packet = bytes.fromhex(compressed_packet)
     decompressed = zstd.decompress(packet)
     raw_packet = base64.b64decode(decompressed)
-    packet = IP(raw_packet.encode())
-    print(f"Recreated Packet: {packet.summary()}")
+    packet = IP(raw_packet)
     # Local MAC address
     sendp(Ether(dst=mac) / packet)  # Send the packet at layer2
 
@@ -38,7 +37,6 @@ def process_received_packet(compressed_packet):
 def process_message(message):
     print(f"Processing message: {message['Body']}")
     data = message["Body"]
-    print(data)
     if data:
         process_received_packet(data)
 
@@ -62,7 +60,6 @@ def listen_for_messages():
                     # Delete the message
                     receipt_handle = message["ReceiptHandle"]
                     sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle)
-                    print(f"Message deleted: {receipt_handle}")
             else:
                 print("No messages received. Waiting...")
 
@@ -73,20 +70,15 @@ def listen_for_messages():
 
 
 def send_sqs(data) -> None:
-    response = sqs.send_message(
+    sqs.send_message(
         QueueUrl=os.environ["CLIENT_QUEUE_URL"],
         MessageBody=data,
     )
-    print(response)
 
 def process_packet(packet):
-    # Grab payload
     scapy_packet = IP(packet.get_payload())
-    # Encode as base64 bytestring
     encoded_packet = base64.b64encode(raw(scapy_packet))
-    # Compress bytestring
     compressed = zstd.compress(encoded_packet) 
-    # Send decoded bytestring (SQS limitation)
     send_sqs(compressed.hex())
     packet.drop()
 
