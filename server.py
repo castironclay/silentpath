@@ -1,16 +1,12 @@
 import base64
+import multiprocessing
 import os
 import time
-import multiprocessing
-import boto3
-import netifaces
-from scapy.all import IP, Ether, sendp
-import base64
-import os
 
 import boto3
+import netifaces
 from netfilterqueue import NetfilterQueue
-from scapy.all import IP, raw
+from scapy.all import IP, Ether, raw, sendp
 
 sqs = boto3.client(
     "sqs",
@@ -72,6 +68,7 @@ def listen_for_messages():
 
         time.sleep(0.25)
 
+
 def send_sqs(data) -> None:
     global client
     response = sqs.send_message(
@@ -89,6 +86,7 @@ def process_packet(packet):
     send_sqs(encoded_packet)
     packet.drop()
 
+
 def run_nfqueue():
     try:
         nfqueue = NetfilterQueue()
@@ -99,6 +97,7 @@ def run_nfqueue():
     except KeyboardInterrupt:
         print("Stopping...")
         nfqueue.unbind()
+
 
 if __name__ == "__main__":
     print("Starting server..")
