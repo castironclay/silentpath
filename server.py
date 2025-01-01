@@ -7,6 +7,7 @@ import boto3
 import netifaces
 from netfilterqueue import NetfilterQueue
 from scapy.all import IP, Ether, raw, sendp
+import zstd
 
 sqs = boto3.client(
     "sqs",
@@ -24,7 +25,8 @@ mac = addrs[netifaces.AF_LINK][0]["addr"]
 def process_received_packet(base64_packet):
     global mac
     # Decode the Base64 back into bytes
-    raw_packet = base64.b64decode(base64_packet)
+    decompressed = zstd.decompress(raw_packet)
+    raw_packet = base64.b64decode(decompressed).encode()
     packet = IP(raw_packet)
     print(f"Recreated Packet: {packet.summary()}")
     # Local MAC address
@@ -76,15 +78,16 @@ def send_sqs(data) -> None:
     )
     print(response)
 
-
 def process_packet(packet):
+    # Grab payload
     scapy_packet = IP(packet.get_payload())
-    # Convert the packet to Base64
-    encoded_packet = base64.b64encode(raw(scapy_packet)).decode()
-    print("Sending")
-    send_sqs(encoded_packet)
+    # Encode as base64 bytestring
+    encoded_packet = base64.b64encode(raw(scapy_packet))
+    # Compress bytestring
+    compressed = zstd.compress(encoded_packet) 
+    # Send decoded bytestring (SQS limitation)
+    send_sqs(encoded_packet.decode())
     packet.drop()
-
 
 def run_nfqueue():
     try:
