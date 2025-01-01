@@ -1,10 +1,16 @@
 import base64
 import os
 import time
-
+import multiprocessing
 import boto3
 import netifaces
 from scapy.all import IP, Ether, sendp
+import base64
+import os
+
+import boto3
+from netfilterqueue import NetfilterQueue
+from scapy.all import IP, raw
 
 sqs = boto3.client(
     "sqs",
@@ -31,7 +37,6 @@ def process_received_packet(base64_packet):
 
 # Function to process each message
 def process_message(message):
-    # Placeholder for your message processing logic
     print(f"Processing message: {message['Body']}")
     data = message["Body"]
     print(data)
@@ -67,8 +72,41 @@ def listen_for_messages():
 
         time.sleep(0.25)
 
+def send_sqs(data) -> None:
+    global client
+    response = sqs.send_message(
+        QueueUrl=os.environ["CLIENT_QUEUE_URL"],
+        MessageBody=data,
+    )
+    print(response)
 
-# Start listening for messages
+
+def process_packet(packet):
+    scapy_packet = IP(packet.get_payload())
+    # Convert the packet to Base64
+    encoded_packet = base64.b64encode(raw(scapy_packet)).decode()
+    print("Sending")
+    send_sqs(encoded_packet)
+    packet.drop()
+
+def run_nfqueue():
+    try:
+        nfqueue = NetfilterQueue()
+        nfqueue.bind(1, process_packet)
+        print("Listening for packets...")
+        nfqueue.run()
+
+    except KeyboardInterrupt:
+        print("Stopping...")
+        nfqueue.unbind()
+
 if __name__ == "__main__":
-    print("Starting server listener")
-    listen_for_messages()
+    print("Starting server..")
+    p1 = multiprocessing.Process(target=listen_for_messages)
+    p2 = multiprocessing.Process(target=run_nfqueue)
+
+    p1.start()
+    p2.start()
+
+    p1.join()
+    p2.join()

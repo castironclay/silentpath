@@ -1,0 +1,12 @@
+boto3==1.35.86
+botocore==1.35.86
+jmespath==1.0.1
+NetfilterQueue==1.1.0
+netifaces==0.11.0
+python-dateutil==2.9.0.post0
+python-iptables==1.0.1
+s3transfer==0.10.4
+scapy==2.6.1
+six==1.17.0
+urllib3==2.3.0
+zstd==1.5.6.1

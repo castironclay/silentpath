@@ -31,7 +31,6 @@ def process_received_packet(base64_packet):
 
 # Function to process each message
 def process_message(message):
-    # Placeholder for your message processing logic
     print(f"Processing message: {message['Body']}")
     data = message["Body"]
     print(data)
