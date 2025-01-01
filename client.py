@@ -68,6 +68,7 @@ def listen_for_messages():
 
         time.sleep(0.25)
 
+
 def send_sqs(data) -> None:
     response = sqs.send_message(
         QueueUrl=os.environ["SERVER_QUEUE_URL"],
@@ -80,7 +81,7 @@ def process_packet(packet):
     scapy_packet = IP(packet.get_payload())
     encoded_packet = base64.b64encode(raw(scapy_packet)).decode()
     send_sqs(encoded_packet)
-    packet.drop()  
+    packet.drop()
 
 
 def run_nfqueue():
@@ -105,4 +106,3 @@ if __name__ == "__main__":
 
     p1.join()
     p2.join()
-
