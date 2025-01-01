@@ -25,7 +25,8 @@ mac = addrs[netifaces.AF_LINK][0]["addr"]
 def process_received_packet(compressed_packet):
     global mac
     # Decode the Base64 back into bytes
-    decompressed = zstd.decompress(compressed_packet)
+    packet = bytes.fromhex(compressed_packet)
+    decompressed = zstd.decompress(packet)
     raw_packet = base64.b64decode(decompressed)
     packet = IP(raw_packet.encode())
     print(f"Recreated Packet: {packet.summary()}")
@@ -93,7 +94,7 @@ def process_packet(packet):
     # Compress bytestring
     compressed = zstd.compress(encoded_packet) 
     # Send decoded bytestring (SQS limitation)
-    send_sqs(encoded_packet.decode())
+    send_sqs(compressed.hex())
     packet.drop()
 
 def run_nfqueue():
