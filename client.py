@@ -1,22 +1,108 @@
+import base64
 import multiprocessing
+import os
 import time
 
-def process1():
-    while True:
-        print("Process 1")
-        time.sleep(3)
+import boto3
+import netifaces
+from netfilterqueue import NetfilterQueue
+from scapy.all import IP, Ether, raw, sendp
 
-def process2():
-    while True:
-        print("Process 2")
-        time.sleep(3)
+sqs = boto3.client(
+    "sqs",
+    region_name="us-east-1",
+    aws_access_key_id=os.environ["AWS_ACCESS_KEY"],
+    aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+    use_ssl=True,
+)
 
-if __name__ == '__main__':
-    p1 = multiprocessing.Process(target=process1)
-    p2 = multiprocessing.Process(target=process2)
+queue_url = f'https://sqs.us-east-1.amazonaws.com/{os.environ["ACCOUNT_ID"]}/{os.environ["PROJECT_NAME"]}_client'
+addrs = netifaces.ifaddresses("wlan0")
+mac = addrs[netifaces.AF_LINK][0]["addr"]
+
+
+def process_received_packet(base64_packet):
+    global mac
+    # Decode the Base64 back into bytes
+    raw_packet = base64.b64decode(base64_packet)
+    packet = IP(raw_packet)
+    print(f"Recreated Packet: {packet.summary()}")
+    # Local MAC address
+    sendp(Ether(dst=mac) / packet)  # Send the packet at layer2
+
+
+# Function to process each message
+def process_message(message):
+    print(f"Processing message: {message['Body']}")
+    data = message["Body"]
+    print(data)
+    if data:
+        process_received_packet(data)
+
+
+def listen_for_messages():
+    while True:
+        try:
+            response = sqs.receive_message(
+                QueueUrl=queue_url,
+                MaxNumberOfMessages=1,
+                WaitTimeSeconds=20,
+                VisibilityTimeout=30,
+            )
+
+            # Check if there are any messages
+            messages = response.get("Messages", [])
+            if messages:
+                for message in messages:
+                    process_message(message)
+
+                    # Delete the message
+                    receipt_handle = message["ReceiptHandle"]
+                    sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle)
+                    print(f"Message deleted: {receipt_handle}")
+            else:
+                print("No messages received. Waiting...")
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+        time.sleep(0.25)
+
+def send_sqs(data) -> None:
+    response = sqs.send_message(
+        QueueUrl=os.environ["SERVER_QUEUE_URL"],
+        MessageBody=data,
+    )
+    print(response)
+
+
+def process_packet(packet):
+    scapy_packet = IP(packet.get_payload())
+    encoded_packet = base64.b64encode(raw(scapy_packet)).decode()
+    send_sqs(encoded_packet)
+    packet.drop()  
+
+
+def run_nfqueue():
+    try:
+        nfqueue = NetfilterQueue()
+        nfqueue.bind(1, process_packet)
+        print("Listening for packets...")
+        nfqueue.run()
+
+    except KeyboardInterrupt:
+        print("Stopping...")
+        nfqueue.unbind()
+
+
+if __name__ == "__main__":
+    print("Starting client..")
+    p1 = multiprocessing.Process(target=listen_for_messages)
+    p2 = multiprocessing.Process(target=run_nfqueue)
 
     p1.start()
     p2.start()
 
     p1.join()
     p2.join()
+

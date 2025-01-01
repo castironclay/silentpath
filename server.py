@@ -70,7 +70,6 @@ def listen_for_messages():
 
 
 def send_sqs(data) -> None:
-    global client
     response = sqs.send_message(
         QueueUrl=os.environ["CLIENT_QUEUE_URL"],
         MessageBody=data,
