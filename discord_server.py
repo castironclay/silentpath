@@ -14,9 +14,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 client = discord.Client(intents=intents)
 
-
 def process_packet(packet):
-    global client
     scapy_packet = IP(packet.get_payload())
     encoded_packet = base64.b64encode(raw(scapy_packet))
     compressed = zstd.compress(encoded_packet) 
