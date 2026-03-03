@@ -1,39 +1,34 @@
+import discord
 import base64
-import multiprocessing
-import os
-import time
-
-import boto3
 import netifaces
+import threading
 from netfilterqueue import NetfilterQueue
-from scapy.all import IP, Ether, raw, sendp
+from scapy.all import IP, Ether, raw, sendp, send
 import zstd
+import asyncio
 
-sqs = boto3.client(
-    "sqs",
-    region_name="us-east-1",
-    aws_access_key_id=os.environ["AWS_ACCESS_KEY"],
-    aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
-    use_ssl=True,
-)
-
-queue_url = f'https://sqs.us-east-1.amazonaws.com/{os.environ["ACCOUNT_ID"]}/{os.environ["PROJECT_NAME"]}_client'
-addrs = netifaces.ifaddresses("wlan0")
+addrs = netifaces.ifaddresses("lo")
 mac = addrs[netifaces.AF_LINK][0]["addr"]
 
 
-def process_received_packet(compressed_packet):
-    global mac
-    # Decode the Base64 back into bytes
-    packet = bytes.fromhex(compressed_packet)
-    decompressed = zstd.decompress(packet)
-    raw_packet = base64.b64decode(decompressed)
-    packet = IP(raw_packet)
-    # Local MAC address
-    sendp(Ether(dst=mac) / packet)  # Send the packet at layer2
+class MyClient(discord.Client):
+    async def on_ready(self):
+        print(f'Logged on as {self.user}!')
 
+    async def on_message(self, message):
+        print(message.author.id)
+        if message.author.id == BOT_ID:
+            compressed_packet = message.content
+            global mac
+            # Decode the Base64 back into bytes
+            packet = bytes.fromhex(compressed_packet)
+            decompressed = zstd.decompress(packet)
+            raw_packet = base64.b64decode(decompressed)
+            packet = IP(raw_packet)
 
-# Function to process each message
+            # Local MAC address
+            send(packet)  # Send the packet at layer2
+
 def process_message(message):
     print(f"Processing message: {message['Body']}")
     data = message["Body"]
@@ -41,48 +36,34 @@ def process_message(message):
         process_received_packet(data)
 
 
-def listen_for_messages():
-    while True:
-        try:
-            response = sqs.receive_message(
-                QueueUrl=queue_url,
-                MaxNumberOfMessages=1,
-                WaitTimeSeconds=20,
-                VisibilityTimeout=30,
-            )
+intents = discord.Intents.default()
+intents.message_content = True
 
-            # Check if there are any messages
-            messages = response.get("Messages", [])
-            if messages:
-                for message in messages:
-                    process_message(message)
+client = MyClient(intents=intents)
 
-                    # Delete the message
-                    receipt_handle = message["ReceiptHandle"]
-                    sqs.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle)
-            else:
-                print("No messages received. Waiting...")
+def start_client(client: discord.Client, stop_event: threading.Event) -> None:
+    try:
+        client.run('TOKEN')
 
-        except Exception as e:
-            print(f"An error occurred: {e}")
+    except KeyboardInterrupt:
+        print("Stopping Discord...")
 
-        time.sleep(0.25)
-
-
-def send_sqs(data) -> None:
-    sqs.send_message(
-        QueueUrl=os.environ["SERVER_QUEUE_URL"],
-        MessageBody=data,
-    )
+    finally:
+        stop_event.set()          
 
 def process_packet(packet):
     scapy_packet = IP(packet.get_payload())
     encoded_packet = base64.b64encode(raw(scapy_packet))
-    compressed = zstd.compress(encoded_packet) 
-    send_sqs(compressed.hex())
+    compressed = zstd.compress(encoded_packet)
+
+    future = asyncio.run_coroutine_threadsafe(
+        send_text('CHANNEL_ID', compressed.hex()),   # the coroutine we want to run
+        client.loop                    # the event loop that the client owns
+    )
+
     packet.drop()
 
-def run_nfqueue():
+def run_nfqueue(stop_event: threading.Event):
     try:
         nfqueue = NetfilterQueue()
         nfqueue.bind(1, process_packet)
@@ -90,17 +71,40 @@ def run_nfqueue():
         nfqueue.run()
 
     except KeyboardInterrupt:
-        print("Stopping...")
+        print("Stopping NFQueue...")
+
+    finally:
+        stop_event.set()          # Signal the other thread to stop
         nfqueue.unbind()
 
 
+## Message
+async def send_text(channel_id: int, text: str):
+    """Coroutine that fetches the channel and sends `text`."""
+    channel = client.get_channel(channel_id)
+    if channel is None:
+        # If the channel isn’t cached yet, fetch it from the API
+        channel = await client.fetch_channel(channel_id)
+
+    await channel.send(text)
+    print(f"📤 Sent: {text}")
+
 if __name__ == "__main__":
     print("Starting client..")
-    p1 = multiprocessing.Process(target=listen_for_messages)
-    p2 = multiprocessing.Process(target=run_nfqueue)
+    stop_event = threading.Event()
 
-    p1.start()
-    p2.start()
+    # Create the two worker threads
+    t1 = threading.Thread(target=start_client, args=(client, stop_event,), name="Discord")
+    t2 = threading.Thread(target=run_nfqueue, args=(stop_event,), name="NfQueue")
 
-    p1.join()
-    p2.join()
+    t1.start()
+    t2.start()
+
+    try:
+        t1.join()
+        t2.join()
+    except KeyboardInterrupt:
+        print("\nKeyboard interrupt received – shutting down...")
+        stop_event.set()
+        t1.join()
+        t2.join()
